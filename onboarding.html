@@ -435,6 +435,7 @@
       banner1.classList.add('show');
       loginForm.reset();
       document.getElementById('toggle1').textContent = 'Show';
+      setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
     }
   });
   loginEmail.addEventListener('input', () => clearError(loginEmail, loginEmailError));
@@ -466,6 +467,7 @@
       banner2.classList.add('show');
       signupForm.reset();
       document.getElementById('toggle2').textContent = 'Show';
+      setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
     }
   });
   signupName.addEventListener('input', () => clearError(signupName, signupNameError));
