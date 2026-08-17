@@ -193,6 +193,12 @@
   }
   .banner.show{ display:block; }
 
+  .banner-error{
+    background:rgba(248,113,113,0.12);
+    color:var(--red);
+    border:1px solid rgba(248,113,113,0.35);
+  }
+
   /* right column stacks category totals + transaction list */
   .right-col{
     display:flex;
@@ -333,6 +339,8 @@
     <a href="onboarding.html#slide2" class="btn-ghost">Log out</a>
   </div>
 
+  <div class="banner banner-error" id="connectionError">Unable to connect to the expense server. Please make sure the backend is running.</div>
+
   <div class="stats">
     <div class="card">
       <div class="stat-label">Total spent</div>
@@ -427,22 +435,9 @@
 (function(){
   'use strict';
 
-  var STORAGE_KEY = 'drip_expenses';
+  var API_BASE = 'http://localhost:5000/api/expenses';
 
   // ---------- helpers ----------
-  function loadExpenses(){
-    try{
-      var raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }catch(e){
-      return [];
-    }
-  }
-  function saveExpenses(list){
-    try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    }catch(e){ /* storage unavailable — fail silently, state still works for this session */ }
-  }
   function formatMoney(n){
     var num = Number(n) || 0;
     return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -464,9 +459,10 @@
     return 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   }
 
-  var expenses = loadExpenses();
+  var expenses = [];
 
   // ---------- DOM refs ----------
+  var connError = document.getElementById('connectionError');
   var form = document.getElementById('expenseForm');
   var amountInput = document.getElementById('amount');
   var amountError = document.getElementById('amountError');
@@ -597,14 +593,49 @@
     return div.innerHTML;
   }
 
+  // ---------- load expenses from the backend ----------
+  function showConnectionError(show){
+    connError.classList.toggle('show', show);
+  }
+
+  function fetchExpenses(){
+    fetch(API_BASE)
+      .then(function(res){
+        if(!res.ok){ throw new Error('Server responded with an error'); }
+        return res.json();
+      })
+      .then(function(data){
+        expenses = data;
+        showConnectionError(false);
+        render();
+      })
+      .catch(function(err){
+        console.error('Could not load expenses:', err);
+        showConnectionError(true);
+        expenses = [];
+        render();
+      });
+  }
+
   // ---------- delete (event delegation) ----------
   txListEl.addEventListener('click', function(e){
     var btn = e.target.closest('.del-btn');
     if(!btn) return;
     var id = btn.getAttribute('data-id');
-    expenses = expenses.filter(function(exp){ return exp.id !== id; });
-    saveExpenses(expenses);
-    render();
+
+    fetch(API_BASE + '/' + id, { method: 'DELETE' })
+      .then(function(res){
+        if(!res.ok){ throw new Error('Delete failed'); }
+        return res.json();
+      })
+      .then(function(){
+        showConnectionError(false);
+        fetchExpenses();
+      })
+      .catch(function(err){
+        console.error('Could not delete expense:', err);
+        showConnectionError(true);
+      });
   });
 
   // ---------- add expense ----------
@@ -642,28 +673,40 @@
     if(!valid) return;
 
     var newExpense = {
-      id: uid(),
       amount: amount,
       category: category,
       description: descriptionInput.value.trim(),
-      date: date,
-      createdAt: Date.now()
+      date: date
     };
 
-    expenses.push(newExpense);
-    saveExpenses(expenses);
-    render();
+    fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newExpense)
+    })
+      .then(function(res){
+        if(!res.ok){ throw new Error('Add expense failed'); }
+        return res.json();
+      })
+      .then(function(){
+        showConnectionError(false);
+        fetchExpenses();
 
-    addBanner.classList.add('show');
-    setTimeout(function(){ addBanner.classList.remove('show'); }, 2200);
+        addBanner.classList.add('show');
+        setTimeout(function(){ addBanner.classList.remove('show'); }, 2200);
 
-    form.reset();
-    dateInput.value = todayISO();
-    customCategoryField.style.display = 'none';
+        form.reset();
+        dateInput.value = todayISO();
+        customCategoryField.style.display = 'none';
+      })
+      .catch(function(err){
+        console.error('Could not add expense:', err);
+        showConnectionError(true);
+      });
   });
 
   // ---------- init ----------
-  render();
+  fetchExpenses();
 })();
 </script>
 
