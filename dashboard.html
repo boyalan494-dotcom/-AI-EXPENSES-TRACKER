@@ -391,6 +391,73 @@
     font-size: 13px;
     opacity: 0.75;
 }
+/* ---------- Search & Filter ---------- */
+
+.search-filter {
+    display: flex;
+    gap: 12px;
+    margin: 18px 0;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-filter input,
+.search-filter select {
+    flex: 1;
+    min-width: 180px;
+    padding: 13px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #ffffff;
+    outline: none;
+    font-size: 14px;
+}
+
+.search-filter input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.search-filter input:focus,
+.search-filter select:focus {
+    border-color: #b04cff;
+    box-shadow: 0 0 0 2px rgba(176, 76, 255, 0.15);
+}
+
+.search-filter select option {
+    background: #1b1728;
+    color: #ffffff;
+}
+
+.search-filter button {
+    padding: 13px 20px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #9333ea, #ec4899);
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.search-filter button:hover {
+    transform: translateY(-1px);
+    opacity: 0.9;
+}
+
+@media (max-width: 600px) {
+    .search-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-filter input,
+    .search-filter select,
+    .search-filter button {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
 </style>
 </head>
 <body>
@@ -489,6 +556,27 @@
       <!-- Transaction list -->
       <div class="card">
         <h2>Transactions</h2>
+        <div class="search-filter">
+    <input
+        type="text"
+        
+        id="searchExpense"
+        placeholder="Search expenses..."
+    >
+
+    <select id="filterCategory">
+        <option value="">All Categories</option>
+        <option value="Food">Food</option>
+        <option value="Groceries">Groceries</option>
+        <option value="Transport">Transport</option>
+        <option value="Shopping">Shopping</option>
+        <option value="Bills">Bills</option>
+        <option value="Entertainment">Entertainment</option>
+        <option value="Other">Other</option>
+    </select>
+
+    <button type="button" id="clearFilters">Clear</button>
+</div>
         <div class="tx-list" id="txList">
           <div class="empty-msg">Nothing here yet. Your added expenses will show up in this list.</div>
         </div>
@@ -645,30 +733,73 @@
     }).join('');
   }
 
-  function renderTxList(){
-    if(expenses.length === 0){
-      txListEl.innerHTML = '<div class="empty-msg">Nothing here yet. Your added expenses will show up in this list.</div>';
-      return;
+ function renderTxList(){
+
+    var searchInput = document.getElementById('searchExpense');
+    var categoryInput = document.getElementById('filterCategory');
+
+    var searchText = searchInput
+        ? searchInput.value.toLowerCase().trim()
+        : '';
+
+    var selectedCategory = categoryInput
+        ? categoryInput.value
+        : '';
+
+    var filtered = expenses.filter(function(exp){
+
+        var description = (exp.description || '').toLowerCase();
+        var category = (exp.category || '').toLowerCase();
+
+        var matchesSearch =
+            description.includes(searchText) ||
+            category.includes(searchText);
+
+        var matchesCategory =
+            !selectedCategory ||
+            exp.category === selectedCategory;
+
+        return matchesSearch && matchesCategory;
+    });
+
+    if(filtered.length === 0){
+        txListEl.innerHTML =
+            '<div class="empty-msg">No expenses found.</div>';
+        return;
     }
-    var sorted = expenses.slice().sort(function(a, b){
-      return (b.date || '').localeCompare(a.date || '');
+
+    var sorted = filtered.slice().sort(function(a, b){
+        return (b.date || '').localeCompare(a.date || '');
     });
 
     txListEl.innerHTML = sorted.map(function(exp){
-      return (
-        '<div class="tx-row" data-id="' + exp.id + '">' +
-          '<div class="tx-left">' +
-            '<div class="tx-desc">' + escapeHtml(exp.description || exp.category) + '</div>' +
-            '<div class="tx-meta"><span class="chip">' + escapeHtml(exp.category) + '</span><span>' + formatDate(exp.date) + '</span></div>' +
-          '</div>' +
-          '<div class="tx-right">' +
-            '<span class="tx-amt">' + formatMoney(exp.amount) + '</span>' +
-            '<button class="del-btn" data-id="' + exp.id + '" aria-label="Delete transaction" title="Delete">✕</button>' +
-          '</div>' +
-        '</div>'
-      );
+        return (
+            '<div class="tx-row" data-id="' + exp.id + '">' +
+                '<div class="tx-left">' +
+                    '<div class="tx-desc">' +
+                        escapeHtml(exp.description || exp.category) +
+                    '</div>' +
+                    '<div class="tx-meta">' +
+                        '<span class="chip">' +
+                            escapeHtml(exp.category) +
+                        '</span>' +
+                        '<span>' +
+                            formatDate(exp.date) +
+                        '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="tx-right">' +
+                    '<span class="tx-amt">' +
+                        formatMoney(exp.amount) +
+                    '</span>' +
+                    '<button class="del-btn" data-id="' +
+                        exp.id +
+                        '" aria-label="Delete transaction" title="Delete">✕</button>' +
+                '</div>' +
+            '</div>'
+        );
     }).join('');
-  }
+}
 
   function escapeHtml(str){
     var div = document.createElement('div');
@@ -780,7 +911,32 @@
     }
   });
 
-  // ---------- init ----------
+  // ---------- init ----------/
+  // / ---------- search & filter ----------
+
+var searchExpense = document.getElementById('searchExpense');
+var filterCategory = document.getElementById('filterCategory');
+var clearFilters = document.getElementById('clearFilters');
+
+if(searchExpense){
+    searchExpense.addEventListener('input', function(){
+        renderTxList();
+    });
+}
+
+if(filterCategory){
+    filterCategory.addEventListener('change', function(){
+        renderTxList();
+    });
+}
+
+if(clearFilters){
+    clearFilters.addEventListener('click', function(){
+        searchExpense.value = '';
+        filterCategory.value = '';
+        renderTxList();
+    });
+}
   fetchExpenses();
 // ===============================
 // AI SPENDING INSIGHTS
