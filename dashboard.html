@@ -812,6 +812,34 @@
   }
 
   // ---------- load expenses from Firestore ----------
+ function updateQuickSummary() {
+  var averageEl = document.getElementById('averageExpense');
+  var highestEl = document.getElementById('highestExpense');
+  var transactionsEl = document.getElementById('summaryTransactions');
+
+  if (!averageEl || !highestEl || !transactionsEl) return;
+
+  if (!expenses || expenses.length === 0) {
+    averageEl.textContent = '₹0.00';
+    highestEl.textContent = '₹0.00';
+    transactionsEl.textContent = '0';
+    return;
+  }
+
+  var total = expenses.reduce(function(sum, expense) {
+    return sum + Number(expense.amount || 0);
+  }, 0);
+
+  var highest = Math.max.apply(null, expenses.map(function(expense) {
+    return Number(expense.amount || 0);
+  }));
+
+  var average = total / expenses.length;
+
+  averageEl.textContent = formatMoney(average);
+  highestEl.textContent = formatMoney(highest);
+  transactionsEl.textContent = expenses.length;
+} 
   async function fetchExpenses(){
     try{
       var snapshot = await getDocs(expensesCol);
@@ -827,6 +855,7 @@
       });
       showConnectionError(false); 
        render();
+       updateQuickSummary();
        generateAIInsights(expenses);
     
     }catch(err){
@@ -1046,7 +1075,29 @@ function generateAIInsights(expenses) {
     insightList.innerHTML = insights.join("");
 }
 </script>
-\\
+<!-- Quick Spending Summary -->
+<section class="quick-summary">
+  <h2>📊 Quick Spending Summary</h2>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px;">
+    
+    <div style="padding:20px;border-radius:16px;background:rgba(255,255,255,0.06);">
+      <div style="font-size:14px;opacity:.7;">Average Expense</div>
+      <div id="averageExpense" style="font-size:24px;font-weight:700;margin-top:8px;">₹0.00</div>
+    </div>
+
+    <div style="padding:20px;border-radius:16px;background:rgba(255,255,255,0.06);">
+      <div style="font-size:14px;opacity:.7;">Highest Expense</div>
+      <div id="highestExpense" style="font-size:24px;font-weight:700;margin-top:8px;">₹0.00</div>
+    </div>
+
+    <div style="padding:20px;border-radius:16px;background:rgba(255,255,255,0.06);">
+      <div style="font-size:14px;opacity:.7;">Total Transactions</div>
+      <div id="summaryTransactions" style="font-size:24px;font-weight:700;margin-top:8px;">0</div>
+    </div>
+
+  </div>
+</section>
 <!-- AI Spending Insights -->
 <section class="ai-insights">
     <div class="ai-insights-header">
