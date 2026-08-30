@@ -507,7 +507,26 @@
 .category-item:last-child {
     border-bottom: none;
 }
-</style>
+.edit-btn,
+.del-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    font-size: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+}
+
+.edit-btn:hover,
+.del-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+ </style>
 <link rel="icon" href="data:,">
 </head>
 <body>
@@ -570,6 +589,22 @@
             <option value="Entertainment">Entertainment</option>
             <option value="__custom">+ Custom category</option>
           </select>
+          <div class="form-group">
+    <label for="paymentMethod">Payment Method</label>
+
+    <select id="paymentMethod">
+        <option value="">Select payment method</option>
+        <option value="Cash">Cash</option>
+        <option value="UPI">UPI</option>
+        <option value="Debit Card">Debit Card</option>
+        <option value="Credit Card">Credit Card</option>
+        <option value="Bank Transfer">Bank Transfer</option>
+    </select>
+
+    <small id="paymentMethodError" class="error-message">
+        Please select a payment method.
+    </small>
+</div>
           <div class="error-msg" id="categoryError">Pick or enter a category.</div>
         </div>
 
@@ -644,6 +679,7 @@
     addDoc,
     getDocs,
     deleteDoc,
+    updateDoc,
     doc
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
@@ -689,6 +725,7 @@
   var amountError = document.getElementById('amountError');
   var categorySelect = document.getElementById('category');
   var categoryError = document.getElementById('categoryError');
+  var paymentMethod = document.getElementById('paymentMethod');
   var customCategoryField = document.getElementById('customCategoryField');
   var customCategoryInput = document.getElementById('customCategory');
   var descriptionInput = document.getElementById('description');
@@ -829,22 +866,18 @@
                     '<div class="tx-desc">' +
                         escapeHtml(exp.description || exp.category) +
                     '</div>' +
-                    '<div class="tx-meta">' +
-                        '<span class="chip">' +
-                            escapeHtml(exp.category) +
-                        '</span>' +
-                        '<span>' +
-                            formatDate(exp.date) +
-                        '</span>' +
-                    '</div>' +
+            '<div class="tx-meta">' +
+                    '<span class="chip">' + escapeHtml(exp.category) + '</span>' +
+                    '<span>' + formatDate(exp.date) + '</span>' +
+                      '<span>💳 ' + escapeHtml(exp.paymentMethod || 'Not specified') + '</span>' +
+                     '</div>' +
                 '</div>' +
                 '<div class="tx-right">' +
                     '<span class="tx-amt">' +
                         formatMoney(exp.amount) +
                     '</span>' +
-                    '<button class="del-btn" data-id="' +
-                        exp.id +
-                        '" aria-label="Delete transaction" title="Delete">✕</button>' +
+                    '<button class="edit-btn" data-id="' + exp.id + '" title="Edit">✏️</button>' +
+                    '<button class="del-btn" data-id="' + exp.id + '" title="Delete">✕</button>' +
                 '</div>' +
             '</div>'
         );
@@ -944,7 +977,8 @@ function updateQuickSummary() {
           amount: Number(data.amount),
           category: data.category,
           description: data.description || '',
-          date: data.date
+          date: data.date,
+          paymentMethod: data.paymentMethod || 'Not specified'
         };
       });
       showConnectionError(false); 
@@ -961,7 +995,55 @@ function updateQuickSummary() {
     }
   }
 
-  // ---------- delete (event delegation) ----------
+  // ---------- edit expense ----------
+txListEl.addEventListener('click', async function(e) {
+
+    var editBtn = e.target.closest('.edit-btn');
+
+    if (!editBtn) return;
+
+    var id = editBtn.getAttribute('data-id');
+
+    var expense = expenses.find(function(item) {
+        return item.id === id;
+    });
+
+    if (!expense) return;
+
+    var newAmount = prompt('Enter new amount:', expense.amount);
+
+    if (newAmount === null) return;
+
+    newAmount = parseFloat(newAmount);
+
+    if (isNaN(newAmount) || newAmount <= 0) {
+        alert('Please enter a valid amount.');
+        return;
+    }
+
+    var newDescription = prompt(
+        'Enter new description:',
+        expense.description || ''
+    );
+
+    if (newDescription === null) return;
+
+    try {
+        await updateDoc(doc(db, 'expenses', id), {
+            amount: newAmount,
+            description: newDescription.trim()
+        });
+
+        await fetchExpenses();
+
+        alert('Expense updated successfully!');
+
+    } catch (err) {
+        console.error('Could not edit expense:', err);
+        alert('Could not edit expense.');
+    }
+});
+// ---------- delete (event delegation) ----------
   txListEl.addEventListener('click', async function(e){
     var btn = e.target.closest('.del-btn');
     if(!btn) return;
@@ -1012,11 +1094,12 @@ function updateQuickSummary() {
     if(!valid) return;
 
     var newExpense = {
-      amount: amount,
-      category: category,
-      description: descriptionInput.value.trim(),
-      date: date
-    };
+    amount: amount,
+    category: category,
+    description: descriptionInput.value.trim(),
+    date: date,
+    paymentMethod: paymentMethod.value
+};
 
     try{
       await addDoc(expensesCol, newExpense);
