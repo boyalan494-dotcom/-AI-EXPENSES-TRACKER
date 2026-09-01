@@ -526,8 +526,84 @@
 .del-btn:hover {
     background: rgba(255, 255, 255, 0.16);
 }
- </style>
+/* Budget Management */
+.budget-section {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.budget-section h2 {
+  margin: 0 0 18px;
+}
+
+.budget-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.budget-controls input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.budget-controls button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  background: linear-gradient(90deg, #8b2cff, #ff2d9b);
+}
+
+.budget-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.budget-info > div {
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.budget-info span {
+  display: block;
+  margin-bottom: 6px;
+  opacity: 0.7;
+}
+
+.budget-info strong {
+  font-size: 20px;
+}
+
+#budgetStatus {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (max-width: 700px) {
+  .budget-controls {
+    flex-direction: column;
+  }
+
+  .budget-info {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 <link rel="icon" href="data:,">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -538,9 +614,13 @@
 <div class="page">
 
   <div class="topbar">
-    <div class="brand">drip<span class="grad">.</span></div>
-    <a href="onboarding.html#slide2" class="btn-ghost">Log out</a>
+  <div class="brand">drip<span class="grad">.</span></div>
+
+  <div>
+    <span id="userProfile">Loading...</span>
+    <a href="#" id="logoutBtn" class="btn-ghost">Log out</a>
   </div>
+</div>
 
   <div class="banner banner-error" id="connectionError">Unable to connect to the database. Please check your internet connection and try again.</div>
 
@@ -561,6 +641,15 @@
       <div class="stat-label">Top category</div>
       <div class="stat-value lime" id="statTopCat">—</div>
     </div>
+    <div class="stat">
+  <div class="stat-label">Total Income</div>
+  <div class="stat-value" id="totalIncome">₹0.00</div>
+</div>
+
+<div class="stat">
+  <div class="stat-label">Current Balance</div>
+  <div class="stat-value" id="currentBalance">₹0.00</div>
+</div>
   </div>
 
   <div class="main-grid">
@@ -570,6 +659,13 @@
       <h2>Add expense</h2>
       <div class="banner" id="addBanner">Expense added ✦</div>
       <form id="expenseForm" novalidate>
+        <div class="field">
+  <label for="transactionType">Transaction Type</label>
+  <select id="transactionType">
+    <option value="expense">Expense</option>
+    <option value="income">Income</option>
+  </select>
+</div>
         <div class="field">
           <label for="amount">Amount (₹)</label>
           <input type="number" id="amount" placeholder="0.00" step="0.01" min="0.01">
@@ -683,7 +779,12 @@
     doc
   } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // ---------- Firebase setup ----------
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+// ---------- Firebase setup ----------
   const firebaseConfig = {
     apiKey: "AIzaSyBhipPtC55d__WK7TE65l1YdvMKyewVIIQ",
     authDomain: "ai-expenses-tracker-a3c92.firebaseapp.com",
@@ -694,6 +795,17 @@
   };
 
   const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+onAuthStateChanged(auth, function(user) {
+  if (!user) {
+    window.location.href = 'onboarding.html';
+    return;
+  }
+
+  document.getElementById('userProfile').textContent =
+    (user.displayName || 'User') + ' • ' + user.email;
+});
   const db = getFirestore(app);
   const expensesCol = collection(db, 'expenses');
 
@@ -721,6 +833,7 @@
   // ---------- DOM refs ----------
   var connError = document.getElementById('connectionError');
   var form = document.getElementById('expenseForm');
+  var transactionType = document.getElementById('transactionType');
   var amountInput = document.getElementById('amount');
   var amountError = document.getElementById('amountError');
   var categorySelect = document.getElementById('category');
@@ -729,6 +842,75 @@
   var customCategoryField = document.getElementById('customCategoryField');
   var customCategoryInput = document.getElementById('customCategory');
   var descriptionInput = document.getElementById('description');
+  function autoCategorize(description) {
+  var text = description.toLowerCase();
+
+  if (
+    text.includes('pizza') ||
+    text.includes('food') ||
+    text.includes('restaurant') ||
+    text.includes('burger') ||
+    text.includes('tea') ||
+    text.includes('coffee')
+  ) {
+    return 'Food';
+  }
+
+  if (
+    text.includes('bus') ||
+    text.includes('train') ||
+    text.includes('petrol') ||
+    text.includes('fuel') ||
+    text.includes('uber') ||
+    text.includes('auto')
+  ) {
+    return 'Transport';
+  }
+
+  if (
+    text.includes('movie') ||
+    text.includes('netflix') ||
+    text.includes('game')
+  ) {
+    return 'Entertainment';
+  }
+
+  if (
+    text.includes('electricity') ||
+    text.includes('recharge') ||
+    text.includes('internet') ||
+    text.includes('bill')
+  ) {
+    return 'Bills';
+  }
+
+  if (
+    text.includes('grocery') ||
+    text.includes('milk') ||
+    text.includes('rice') ||
+    text.includes('vegetable')
+  ) {
+    return 'Groceries';
+  }
+
+  if (
+    text.includes('shirt') ||
+    text.includes('shoe') ||
+    text.includes('amazon') ||
+    text.includes('flipkart')
+  ) {
+    return 'Shopping';
+  }
+
+  return null;
+}
+descriptionInput.addEventListener('input', function() {
+  var suggestedCategory = autoCategorize(descriptionInput.value);
+
+  if (suggestedCategory) {
+    categorySelect.value = suggestedCategory;
+  }
+});
   var dateInput = document.getElementById('date');
   var dateError = document.getElementById('dateError');
   var addBanner = document.getElementById('addBanner');
@@ -767,35 +949,79 @@
     renderCategoryTotals();
     renderTxList();
   }
+function renderStats() {
 
-  function renderStats(){
-    var total = 0;
+    var totalExpenses = 0;
+    var totalIncome = 0;
     var byMonth = {};
     var byCat = {};
-    var nowKey = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
 
-    expenses.forEach(function(exp){
-      total += exp.amount;
-      byCat[exp.category] = (byCat[exp.category] || 0) + exp.amount;
-      var monthKey = (exp.date || '').slice(0, 7);
-      byMonth[monthKey] = (byMonth[monthKey] || 0) + exp.amount;
+    var nowKey =
+        new Date().getFullYear() + '-' +
+        String(new Date().getMonth() + 1).padStart(2, '0');
+
+    expenses.forEach(function(exp) {
+
+        var amount = Number(exp.amount || 0);
+
+        // INCOME
+        if (exp.type === 'income') {
+            totalIncome += amount;
+        }
+
+        // EXPENSE
+        else {
+            totalExpenses += amount;
+
+            byCat[exp.category] =
+                (byCat[exp.category] || 0) + amount;
+
+            var monthKey = (exp.date || '').slice(0, 7);
+
+            byMonth[monthKey] =
+                (byMonth[monthKey] || 0) + amount;
+        }
     });
 
-    statTotal.textContent = formatMoney(total);
+    // Existing dashboard statistics
+    statTotal.textContent = formatMoney(totalExpenses);
     statCount.textContent = String(expenses.length);
     statMonth.textContent = formatMoney(byMonth[nowKey] || 0);
 
+    // NEW: Income + Balance
+    var incomeElement = document.getElementById('totalIncome');
+    var balanceElement = document.getElementById('currentBalance');
+
+    if (incomeElement) {
+        incomeElement.textContent = formatMoney(totalIncome);
+    }
+
+    if (balanceElement) {
+        balanceElement.textContent =
+            formatMoney(totalIncome - totalExpenses);
+    }
+
+    // Top expense category
     var topCat = '—';
     var topAmt = -1;
-    Object.keys(byCat).forEach(function(cat){
-      if(byCat[cat] > topAmt){ topAmt = byCat[cat]; topCat = cat; }
+
+    Object.keys(byCat).forEach(function(cat) {
+        if (byCat[cat] > topAmt) {
+            topAmt = byCat[cat];
+            topCat = cat;
+        }
     });
+
     statTopCat.textContent = topCat;
-  }
+}
 
   function renderCategoryTotals(){
     var byCat = {};
-    expenses.forEach(function(exp){
+    expenses
+  .filter(function(exp) {
+    return exp.type !== 'income';
+  })
+  .forEach(function(exp) {
       byCat[exp.category] = (byCat[exp.category] || 0) + exp.amount;
     });
     var cats = Object.keys(byCat);
@@ -906,6 +1132,7 @@
     var currentYear = String(now.getFullYear());
 
     var monthlyExpenses = expenses.filter(function(exp) {
+      exp.type !== 'income'
         return exp.date &&
             exp.date.startsWith(currentYear + '-' + currentMonth);
     });
@@ -946,27 +1173,31 @@ function updateQuickSummary() {
 
   if (!averageEl || !highestEl || !transactionsEl) return;
 
-  if (!expenses || expenses.length === 0) {
+  var expenseOnly = expenses.filter(function(expense) {
+    return expense.type !== 'income';
+  });
+
+  if (expenseOnly.length === 0) {
     averageEl.textContent = '₹0.00';
     highestEl.textContent = '₹0.00';
     transactionsEl.textContent = '0';
     return;
   }
 
-  var total = expenses.reduce(function(sum, expense) {
+  var total = expenseOnly.reduce(function(sum, expense) {
     return sum + Number(expense.amount || 0);
   }, 0);
 
-  var highest = Math.max.apply(null, expenses.map(function(expense) {
+  var highest = Math.max.apply(null, expenseOnly.map(function(expense) {
     return Number(expense.amount || 0);
   }));
 
-  var average = total / expenses.length;
+  var average = total / expenseOnly.length;
 
   averageEl.textContent = formatMoney(average);
   highestEl.textContent = formatMoney(highest);
-  transactionsEl.textContent = expenses.length;
-} 
+  transactionsEl.textContent = expenseOnly.length;
+}
   async function fetchExpenses(){
     try{
       var snapshot = await getDocs(expensesCol);
@@ -978,13 +1209,18 @@ function updateQuickSummary() {
           category: data.category,
           description: data.description || '',
           date: data.date,
-          paymentMethod: data.paymentMethod || 'Not specified'
+          paymentMethod: data.paymentMethod || 'Not specified',
+          type: data.type || 'expense'
         };
       });
       showConnectionError(false); 
        render();
        updateQuickSummary();
        updateMonthlyAnalysis();
+       updateBudget();
+       updateCategoryBudget();
+       renderSpendingChart();
+       updateDailyWeeklySpending();
        generateAIInsights(expenses);
     
     }catch(err){
@@ -1098,7 +1334,8 @@ txListEl.addEventListener('click', async function(e) {
     category: category,
     description: descriptionInput.value.trim(),
     date: date,
-    paymentMethod: paymentMethod.value
+    paymentMethod: paymentMethod.value,
+    type: transactionType.value,
 };
 
     try{
@@ -1117,6 +1354,188 @@ txListEl.addEventListener('click', async function(e) {
       showConnectionError(true);
     }
   });
+  // ---------- Budget Management ----------
+
+var budgetInput = document.getElementById('budgetInput');
+var setBudgetBtn = document.getElementById('setBudgetBtn');
+var budgetAmount = document.getElementById('budgetAmount');
+var budgetUsed = document.getElementById('budgetUsed');
+var budgetRemaining = document.getElementById('budgetRemaining');
+var budgetStatus = document.getElementById('budgetStatus');
+
+var monthlyBudget = Number(localStorage.getItem('monthlyBudget')) || 0;
+
+function updateBudget() {
+
+    var nowKey =
+        new Date().getFullYear() + '-' +
+        String(new Date().getMonth() + 1).padStart(2, '0');
+
+    var monthlyExpenses = expenses
+        .filter(function(exp) {
+            return exp.type !== 'income' &&
+                   (exp.date || '').slice(0, 7) === nowKey;
+        })
+        .reduce(function(sum, exp) {
+            return sum + Number(exp.amount || 0);
+        }, 0);
+
+    budgetAmount.textContent = formatMoney(monthlyBudget);
+    budgetUsed.textContent = formatMoney(monthlyExpenses);
+
+    var remaining = monthlyBudget - monthlyExpenses;
+    budgetRemaining.textContent = formatMoney(remaining);
+
+    if (monthlyBudget <= 0) {
+        budgetStatus.textContent =
+            'Set your monthly budget to start tracking.';
+        return;
+    }
+
+    var percentage = (monthlyExpenses / monthlyBudget) * 100;
+
+    if (percentage >= 100) {
+        budgetStatus.textContent =
+            '🚨 Budget exceeded! You have used ' +
+            percentage.toFixed(1) + '% of your budget.';
+    }
+    else if (percentage >= 80) {
+        budgetStatus.textContent =
+            '⚠️ Warning! You have used ' +
+            percentage.toFixed(1) + '% of your budget.';
+    }
+    else {
+        budgetStatus.textContent =
+            '✅ You have used ' +
+            percentage.toFixed(1) +
+            '% of your monthly budget.';
+    }
+}
+
+setBudgetBtn.addEventListener('click', function() {
+
+    var value = Number(budgetInput.value);
+
+    if (value <= 0) {
+        alert('Please enter a valid budget.');
+        return;
+    }
+
+    monthlyBudget = value;
+
+    localStorage.setItem(
+        'monthlyBudget',
+        String(monthlyBudget)
+    );
+
+    updateBudget();
+
+    budgetInput.value = '';
+});
+// ---------- Category Budget ----------
+
+var categoryBudgetSelect =
+    document.getElementById('categoryBudgetSelect');
+
+var categoryBudgetInput =
+    document.getElementById('categoryBudgetInput');
+
+var setCategoryBudgetBtn =
+    document.getElementById('setCategoryBudgetBtn');
+
+var categoryBudgetStatus =
+    document.getElementById('categoryBudgetStatus');
+
+var categoryBudgets =
+    JSON.parse(localStorage.getItem('categoryBudgets')) || {};
+
+function updateCategoryBudget() {
+
+    var selectedCategory = categoryBudgetSelect.value;
+
+    var budget =
+        Number(categoryBudgets[selectedCategory] || 0);
+
+    var used = expenses
+        .filter(function(exp) {
+            return exp.type !== 'income' &&
+                   exp.category === selectedCategory;
+        })
+        .reduce(function(sum, exp) {
+            return sum + Number(exp.amount || 0);
+        }, 0);
+
+    if (budget <= 0) {
+        categoryBudgetStatus.textContent =
+            'No budget set for ' + selectedCategory + '.';
+        return;
+    }
+
+    var remaining = budget - used;
+
+    var percentage =
+        (used / budget) * 100;
+
+    if (percentage >= 100) {
+        categoryBudgetStatus.textContent =
+            '🚨 ' + selectedCategory +
+            ' budget exceeded! Used ' +
+            formatMoney(used) +
+            ' of ' +
+            formatMoney(budget) + '.';
+    }
+    else if (percentage >= 80) {
+        categoryBudgetStatus.textContent =
+            '⚠️ ' + selectedCategory +
+            ' is at ' +
+            percentage.toFixed(1) +
+            '% of its budget. Remaining: ' +
+            formatMoney(remaining);
+    }
+    else {
+        categoryBudgetStatus.textContent =
+            '✅ ' + selectedCategory +
+            ': Used ' +
+            formatMoney(used) +
+            ' of ' +
+            formatMoney(budget) +
+            '. Remaining: ' +
+            formatMoney(remaining);
+    }
+}
+
+setCategoryBudgetBtn.addEventListener(
+    'click',
+    function() {
+
+        var category =
+            categoryBudgetSelect.value;
+
+        var value =
+            Number(categoryBudgetInput.value);
+
+        if (value <= 0) {
+            alert('Please enter a valid category budget.');
+            return;
+        }
+
+        categoryBudgets[category] = value;
+
+        localStorage.setItem(
+            'categoryBudgets',
+            JSON.stringify(categoryBudgets)
+        );
+
+        updateCategoryBudget();
+
+        categoryBudgetInput.value = '';
+    }
+);
+
+categoryBudgetSelect.addEventListener(
+    'change',
+    updateCategoryBudget
+);
 
   // ---------- init ----------/
   // / ---------- search & filter ----------
@@ -1149,13 +1568,148 @@ if(clearFilters){
 // AI SPENDING INSIGHTS
 // ===============================
 
-function generateAIInsights(expenses) {
+var spendingChartInstance = null;
 
+function renderSpendingChart() {
+
+    var canvas = document.getElementById('spendingChart');
+
+    if (!canvas) return;
+
+    var categoryTotals = {};
+
+    expenses
+        .filter(function(exp) {
+            return exp.type !== 'income';
+        })
+        .forEach(function(exp) {
+            var category = exp.category || 'Other';
+
+            categoryTotals[category] =
+                (categoryTotals[category] || 0) +
+                Number(exp.amount || 0);
+        });
+
+    var labels = Object.keys(categoryTotals);
+    var values = Object.values(categoryTotals);
+
+    if (spendingChartInstance) {
+        spendingChartInstance.destroy();
+    }
+
+    spendingChartInstance = new Chart(canvas, {
+        type: 'doughnut',
+
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Spending',
+                data: values
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+}
+// ---------- Export CSV Report ----------
+
+var exportCsvBtn = document.getElementById('exportCsvBtn');
+
+if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', function() {
+
+        var expenseOnly = expenses.filter(function(exp) {
+            return exp.type !== 'income';
+        });
+
+        if (expenseOnly.length === 0) {
+            alert('No expense data available to export.');
+            return;
+        }
+
+        var csv = 'Date,Category,Description,Payment Method,Amount\n';
+
+        expenseOnly.forEach(function(exp) {
+
+            var row = [
+                exp.date || '',
+                exp.category || '',
+                exp.description || '',
+                exp.paymentMethod || 'Not specified',
+                Number(exp.amount || 0)
+            ];
+
+            csv += row.map(function(value) {
+                return '"' + String(value).replace(/"/g, '""') + '"';
+            }).join(',') + '\n';
+        });
+
+        var blob = new Blob([csv], {
+            type: 'text/csv;charset=utf-8;'
+        });
+
+        var url = URL.createObjectURL(blob);
+
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'expense-report.csv';
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+    });
+}
+function updateDailyWeeklySpending() {
+
+    var dailyEl = document.getElementById('dailySpending');
+    var weeklyEl = document.getElementById('weeklySpending');
+
+    if (!dailyEl || !weeklyEl) return;
+
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    var sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 6);
+
+    var dailyTotal = 0;
+    var weeklyTotal = 0;
+
+    expenses.forEach(function(exp) {
+
+        if (exp.type === 'income' || !exp.date) return;
+
+        var expenseDate = new Date(exp.date + 'T00:00:00');
+        var amount = Number(exp.amount || 0);
+
+        if (expenseDate.getTime() === today.getTime()) {
+            dailyTotal += amount;
+        }
+
+        if (expenseDate >= sevenDaysAgo && expenseDate <= today) {
+            weeklyTotal += amount;
+        }
+    });
+
+    dailyEl.textContent = formatMoney(dailyTotal);
+    weeklyEl.textContent = formatMoney(weeklyTotal);
+}
+function generateAIInsights(expenses) {
     const insightList = document.getElementById("aiInsightList");
 
     if (!insightList) return;
 
-    if (!expenses || expenses.length === 0) {
+    // Only expenses — don't count income
+    const expenseOnly = expenses.filter(function(expense) {
+        return expense.type !== "income";
+    });
+
+    if (expenseOnly.length === 0) {
         insightList.innerHTML = `
             <div class="ai-insight-card">
                 <span class="ai-icon">💡</span>
@@ -1171,9 +1725,9 @@ function generateAIInsights(expenses) {
     let total = 0;
     const categories = {};
 
-    expenses.forEach(function(expense) {
-
+    expenseOnly.forEach(function(expense) {
         const amount = Number(expense.amount) || 0;
+
         total += amount;
 
         const category = expense.category || "Other";
@@ -1186,7 +1740,6 @@ function generateAIInsights(expenses) {
     });
 
     const categoryNames = Object.keys(categories);
-
     let topCategory = categoryNames[0];
 
     categoryNames.forEach(function(category) {
@@ -1201,7 +1754,13 @@ function generateAIInsights(expenses) {
         ? Math.round((topAmount / total) * 100)
         : 0;
 
-    const transactionCount = expenses.length;
+    const transactionCount = expenseOnly.length;
+
+    const average = total / transactionCount;
+
+    const highExpenses = expenseOnly.filter(function(expense) {
+        return Number(expense.amount || 0) > average * 2;
+    });
 
     let insights = [];
 
@@ -1210,7 +1769,7 @@ function generateAIInsights(expenses) {
             <span class="ai-icon">💰</span>
             <div>
                 <h3>Total spending</h3>
-                <p>You have spent ₹${total.toLocaleString("en-IN")} across ${transactionCount} transaction${transactionCount > 1 ? "s" : ""}.</p>
+                <p>You have spent ₹${total.toLocaleString("en-IN")} across ${transactionCount} expense transactions.</p>
             </div>
         </div>
     `);
@@ -1226,7 +1785,6 @@ function generateAIInsights(expenses) {
     `);
 
     if (percentage >= 50) {
-
         insights.push(`
             <div class="ai-insight-card">
                 <span class="ai-icon">⚠️</span>
@@ -1236,9 +1794,7 @@ function generateAIInsights(expenses) {
                 </div>
             </div>
         `);
-
     } else {
-
         insights.push(`
             <div class="ai-insight-card">
                 <span class="ai-icon">✅</span>
@@ -1250,9 +1806,99 @@ function generateAIInsights(expenses) {
         `);
     }
 
+    if (highExpenses.length > 0) {
+        const highestExpense = Math.max.apply(
+            null,
+            highExpenses.map(function(expense) {
+                return Number(expense.amount || 0);
+            })
+        );
+
+        insights.push(`
+            <div class="ai-insight-card">
+                <span class="ai-icon">🚨</span>
+                <div>
+                    <h3>Unusual high spending detected</h3>
+                    <p>A high expense of ₹${highestExpense.toLocaleString("en-IN")} was detected compared with your average spending.</p>
+                </div>
+            </div>
+        `);
+    }
+
     insightList.innerHTML = insights.join("");
 }
+document.getElementById('logoutBtn').addEventListener('click', async function(e) {
+  e.preventDefault();
+
+  await signOut(auth);
+  window.location.href = 'onboarding.html#slide2';
+});
 </script>
+<!-- Budget Management -->
+<section class="budget-section">
+  <h2>💰 Monthly Budget</h2>
+
+  <div class="budget-controls">
+    <input
+      type="number"
+      id="budgetInput"
+      placeholder="Enter monthly budget"
+      min="1"
+    >
+    <button type="button" id="setBudgetBtn">Set Budget</button>
+  </div>
+
+  <div class="budget-info">
+    <div>
+      <span>Budget</span>
+      <strong id="budgetAmount">₹0.00</strong>
+    </div>
+
+    <div>
+      <span>Used</span>
+      <strong id="budgetUsed">₹0.00</strong>
+    </div>
+
+    <div>
+      <span>Remaining</span>
+      <strong id="budgetRemaining">₹0.00</strong>
+    </div>
+  </div>
+
+  <div id="budgetStatus">
+    Set your monthly budget to start tracking.
+  </div>
+  <hr style="margin:20px 0; opacity:0.2;">
+
+<h3>Category Budget</h3>
+
+<div class="budget-controls">
+  <select id="categoryBudgetSelect">
+    <option value="Food">Food</option>
+    <option value="Transport">Transport</option>
+    <option value="Shopping">Shopping</option>
+    <option value="Groceries">Groceries</option>
+    <option value="Bills">Bills</option>
+    <option value="Subscriptions">Subscriptions</option>
+    <option value="Entertainment">Entertainment</option>
+  </select>
+
+  <input
+    type="number"
+    id="categoryBudgetInput"
+    placeholder="Enter category budget"
+    min="1"
+  >
+
+  <button type="button" id="setCategoryBudgetBtn">
+    Set Category Budget
+  </button>
+</div>
+
+<div id="categoryBudgetStatus">
+  Select a category and set its budget.
+</div>
+</section>
 <!-- Quick Spending Summary -->
 <section class="quick-summary">
   <h2>📊 Quick Spending Summary</h2>
@@ -1276,6 +1922,33 @@ function generateAIInsights(expenses) {
 
   </div>
 </section>
+<div style="margin: 20px 0;">
+    <button type="button" id="exportCsvBtn">
+        📥 Export Expense Report
+    </button>
+</div>
+<!-- Daily & Weekly Spending -->
+<section class="quick-summary">
+    <h2>📅 Spending Overview</h2>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px;">
+
+        <div style="padding:20px;border-radius:16px;background:rgba(255,255,255,0.06);">
+            <div style="font-size:14px;opacity:.7;">Today's Spending</div>
+            <div id="dailySpending" style="font-size:24px;font-weight:700;margin-top:8px;">
+                ₹0.00
+            </div>
+        </div>
+
+        <div style="padding:20px;border-radius:16px;background:rgba(255,255,255,0.06);">
+            <div style="font-size:14px;opacity:.7;">Last 7 Days</div>
+            <div id="weeklySpending" style="font-size:24px;font-weight:700;margin-top:8px;">
+                ₹0.00
+            </div>
+        </div>
+
+    </div>
+</section>
 <!-- Monthly Spending Analysis -->
 <section class="monthly-analysis">
     <h2>📅 Monthly Spending Analysis</h2>
@@ -1290,6 +1963,14 @@ function generateAIInsights(expenses) {
         <div id="monthlyCategories">
             No data available yet.
         </div>
+    </div>
+</section>
+<!-- Spending Chart -->
+<section class="monthly-analysis">
+    <h2>📈 Spending by Category</h2>
+
+    <div style="margin-top:20px; height:320px;">
+        <canvas id="spendingChart"></canvas>
     </div>
 </section>
 <!-- AI Spending Insights -->

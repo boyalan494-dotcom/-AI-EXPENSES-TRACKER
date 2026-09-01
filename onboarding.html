@@ -316,7 +316,7 @@
 
       <div class="banner" id="banner1">Signed in — demo form, no backend hooked up yet.</div>
 
-      <form id="loginForm" novalidate>
+       <form id="loginForm" novalidate>
         <div class="field">
           <label for="loginEmail">Email</label>
           <input type="email" id="loginEmail" placeholder="you@email.com" autocomplete="username">
@@ -370,8 +370,27 @@
 
 </div>
 
-<script>
-  // dot nav: click to scroll
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  const firebaseConfig = {
+  apiKey: "AIzaSyBhipPtC55d__WK7TE65l1YdvMKyewVIIQ",
+  authDomain: "ai-expenses-tracker-a3c92.firebaseapp.com",
+  projectId: "ai-expenses-tracker-a3c92",
+  storageBucket: "ai-expenses-tracker-a3c92.firebasestorage.app",
+  messagingSenderId: "800740109673",
+  appId: "1:800740109673:web:01cb905596f2641ba661f8",
+  measurementId: "G-YRCW6N0X3L"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+// dot nav: click to scroll
   const dots = document.querySelectorAll('.dot');
   dots.forEach(dot => {
     dot.addEventListener('click', () => {
@@ -423,22 +442,50 @@
   const loginPasswordError = document.getElementById('loginPasswordError');
   const banner1 = document.getElementById('banner1');
 
-  loginForm.addEventListener('submit', e => {
-    e.preventDefault();
-    let valid = true;
-    if (!isValidEmail(loginEmail.value)) { setError(loginEmail, loginEmailError); valid = false; }
-    else clearError(loginEmail, loginEmailError);
+  loginForm.addEventListener('submit', async e => {
+  e.preventDefault();
 
-    if (loginPassword.value.length < 6) { setError(loginPassword, loginPasswordError); valid = false; }
-    else clearError(loginPassword, loginPasswordError);
+  let valid = true;
 
-    if (valid) {
-      banner1.classList.add('show');
-      loginForm.reset();
-      document.getElementById('toggle1').textContent = 'Show';
-      setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
-    }
-  });
+  if (!isValidEmail(loginEmail.value)) {
+    setError(loginEmail, loginEmailError);
+    valid = false;
+  } else {
+    clearError(loginEmail, loginEmailError);
+  }
+
+  if (loginPassword.value.length < 6) {
+    setError(loginPassword, loginPasswordError);
+    valid = false;
+  } else {
+    clearError(loginPassword, loginPasswordError);
+  }
+
+  if (!valid) return;
+
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      loginEmail.value,
+      loginPassword.value
+    );
+
+    banner1.textContent = 'Signed in successfully!';
+    banner1.classList.add('show');
+
+    setTimeout(() => {
+      window.location.href = 'dashboard.html';
+    }, 900);
+
+  } catch (error) {
+    console.error(error);
+
+    banner1.textContent =
+      'Invalid email or password.';
+
+    banner1.classList.add('show');
+  }
+});
   loginEmail.addEventListener('input', () => clearError(loginEmail, loginEmailError));
   loginPassword.addEventListener('input', () => clearError(loginPassword, loginPasswordError));
 
@@ -452,25 +499,63 @@
   const signupPasswordError = document.getElementById('signupPasswordError');
   const banner2 = document.getElementById('banner2');
 
-  signupForm.addEventListener('submit', e => {
-    e.preventDefault();
-    let valid = true;
-    if (signupName.value.trim().length < 1) { setError(signupName, signupNameError); valid = false; }
-    else clearError(signupName, signupNameError);
+  signupForm.addEventListener('submit', async e => {
+  e.preventDefault();
 
-    if (!isValidEmail(signupEmail.value)) { setError(signupEmail, signupEmailError); valid = false; }
-    else clearError(signupEmail, signupEmailError);
+  let valid = true;
 
-    if (signupPassword.value.length < 6) { setError(signupPassword, signupPasswordError); valid = false; }
-    else clearError(signupPassword, signupPasswordError);
+  if (signupName.value.trim().length < 1) {
+    setError(signupName, signupNameError);
+    valid = false;
+  } else {
+    clearError(signupName, signupNameError);
+  }
 
-    if (valid) {
-      banner2.classList.add('show');
-      signupForm.reset();
-      document.getElementById('toggle2').textContent = 'Show';
-      setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
-    }
-  });
+  if (!isValidEmail(signupEmail.value)) {
+    setError(signupEmail, signupEmailError);
+    valid = false;
+  } else {
+    clearError(signupEmail, signupEmailError);
+  }
+
+  if (signupPassword.value.length < 6) {
+    setError(signupPassword, signupPasswordError);
+    valid = false;
+  } else {
+    clearError(signupPassword, signupPasswordError);
+  }
+
+  if (!valid) return;
+
+  try {
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      signupEmail.value,
+      signupPassword.value
+    );
+
+    await updateProfile(userCredential.user, {
+      displayName: signupName.value.trim()
+    });
+
+    banner2.textContent = 'Account created successfully!';
+    banner2.classList.add('show');
+
+    setTimeout(() => {
+      window.location.href = 'dashboard.html';
+    }, 900);
+
+  } catch (error) {
+    console.error(error);
+
+    banner2.textContent =
+      error.code === 'auth/email-already-in-use'
+        ? 'This email already has an account.'
+        : 'Could not create account. Please try again.';
+
+    banner2.classList.add('show');
+  }
+});
   signupName.addEventListener('input', () => clearError(signupName, signupNameError));
   signupEmail.addEventListener('input', () => clearError(signupEmail, signupEmailError));
   signupPassword.addEventListener('input', () => clearError(signupPassword, signupPasswordError));
